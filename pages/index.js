@@ -108,8 +108,39 @@ function PastorWordModal({ onClose, onSave, existing }) {
   const empty = { book: existing?.book || '', date: existing?.date || today(), prayerIn: existing?.prayerIn || '', summary: existing?.summary || '', verse: existing?.verse || '', meditation: existing?.meditation || '', applyChar: existing?.applyChar || '', applyAct: existing?.applyAct || '', prayerOut: existing?.prayerOut || '' };
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
+  const [pasteText, setPasteText] = useState('');
+  const [parsing, setParsing] = useState(false);
+  const [showPaste, setShowPaste] = useState(true);
 
   function set(key) { return e => setForm(f => ({ ...f, [key]: e.target.value })); }
+
+  async function handleParse() {
+    if (!pasteText.trim()) return;
+    setParsing(true);
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 2000,
+          system: '큐티 텍스트를 분석해서 각 항목으로 분류해주세요. 반드시 JSON만 반환하고 다른 텍스트는 절대 포함하지 마세요. 마크다운 코드블록도 사용하지 마세요.',
+          messages: [{
+            role: 'user',
+            content: '아래 큐티 텍스트를 분석해서 정확히 이 JSON 형식으로만 반환해주세요:\n{"date":"YYYY-MM-DD","book":"본문구절","prayerIn":"들어가는기도","summary":"본문요약","verse":"붙잡은말씀","meditation":"느낌과묵상","applyChar":"적용결단성품","applyAct":"적용결단행동","prayerOut":"올려드리는기도"}\n\n날짜가 없으면 오늘 날짜 ' + today() + ' 사용. 각 항목 텍스트에서 번호나 제목은 제거하고 내용만 넣어주세요.\n\n텍스트:\n' + pasteText
+          }]
+        })
+      });
+      const data = await res.json();
+      const text = data.content?.[0]?.text || '';
+      const parsed = JSON.parse(text.trim());
+      setForm(f => ({ ...f, ...parsed }));
+      setShowPaste(false);
+    } catch(e) {
+      alert('분석 중 오류가 발생했습니다. 직접 입력해주세요.');
+    }
+    setParsing(false);
+  }
 
   async function handleSave() {
     if (!form.book.trim()) return;
@@ -125,48 +156,77 @@ function PastorWordModal({ onClose, onSave, existing }) {
           <div className="serif" style={{ fontSize: 18, fontWeight: 500, color: 'var(--brown-dark)' }}>오늘의 말씀 올리기</div>
           <button className="btn btn-sm" onClick={onClose}>닫기</button>
         </div>
-        <div className="card">
-          <div className="field-group">
-            <label className="field-label">📖 오늘 본문</label>
-            <input type="text" placeholder="예) 요한복음 3:16-17" value={form.book} onChange={set('book')} />
-          </div>
-          <div className="field-group" style={{ marginBottom: 0 }}>
-            <label className="field-label">날짜</label>
-            <input type="date" value={form.date} onChange={set('date')} />
-          </div>
-        </div>
-        <div className="card">
-          {[
-            { key: 'prayerIn', label: '✦ 큐티 전재 / 들어가는 기도', ph: '큐티를 시작하기 전, 마음을 여는 기도를 적어주세요...' },
-            { key: 'summary', label: '2. 본문 요약', ph: '본문을 간단히 두 세 줄로 요약해주세요...', short: true },
-            { key: 'verse', label: '3. 붙잡은 말씀', ph: '내가 은혜 받은 성경 구절을 적어주세요...' },
-            { key: 'meditation', label: '4. 느낌과 묵상', ph: '말씀을 통해 느끼고 묵상한 것을 자유롭게 적어주세요...', tall: true },
-          ].map(({ key, label, ph, tall, short }) => (
-            <div key={key} className="qt-block">
-              <div className="qt-block-title">{label}</div>
-              <textarea placeholder={ph} value={form[key]} onChange={set(key)} style={{ minHeight: tall ? 110 : short ? 70 : 90 }} />
+
+        {showPaste ? (
+          <div>
+            <div className="card">
+              <div className="qt-block-title" style={{ marginBottom: 8 }}>📋 큐티 내용 붙여넣기</div>
+              <div style={{ fontSize: 13, color: 'var(--text-soft)', marginBottom: 10, lineHeight: 1.6 }}>
+                카카오톡에 올리신 큐티 내용을 그대로 복사해서 붙여넣으시면 자동으로 각 칸에 채워집니다.
+              </div>
+              <textarea
+                placeholder={"2026.04.08 시편 91:1-16\n1.들어가는 기도\n주님 감사합니다...\n2.본문 요약\n..."}
+                value={pasteText}
+                onChange={e => setPasteText(e.target.value)}
+                style={{ minHeight: 180, fontSize: 13 }}
+              />
             </div>
-          ))}
-          <div className="qt-block">
-            <div className="qt-block-title">5. 적용과 결단</div>
-            <div style={{ marginBottom: 8 }}>
-              <div className="field-label" style={{ marginBottom: 4 }}>성품)</div>
-              <textarea placeholder="성품 면에서의 적용..." value={form.applyChar} onChange={set('applyChar')} style={{ minHeight: 70 }} />
-            </div>
-            <div>
-              <div className="field-label" style={{ marginBottom: 4 }}>행동)</div>
-              <textarea placeholder="행동 면에서의 결단..." value={form.applyAct} onChange={set('applyAct')} style={{ minHeight: 70 }} />
+            <div className="btn-row">
+              <button className="btn" onClick={() => setShowPaste(false)}>직접 입력</button>
+              <button className="btn btn-pastor" onClick={handleParse} disabled={parsing || !pasteText.trim()}>
+                {parsing ? '분석 중...' : '✦ 자동 분류하기'}
+              </button>
             </div>
           </div>
-          <div className="qt-block" style={{ marginBottom: 0 }}>
-            <div className="qt-block-title">6. 올려드리는 기도</div>
-            <textarea placeholder="마무리 기도를 적어주세요..." value={form.prayerOut} onChange={set('prayerOut')} />
+        ) : (
+          <div>
+            <div style={{ marginBottom: '1rem', textAlign: 'right' }}>
+              <button className="btn btn-sm" onClick={() => setShowPaste(true)}>← 다시 붙여넣기</button>
+            </div>
+            <div className="card">
+              <div className="field-group">
+                <label className="field-label">📖 오늘 본문</label>
+                <input type="text" placeholder="예) 시편 91:1-16" value={form.book} onChange={set('book')} />
+              </div>
+              <div className="field-group" style={{ marginBottom: 0 }}>
+                <label className="field-label">날짜</label>
+                <input type="date" value={form.date} onChange={set('date')} />
+              </div>
+            </div>
+            <div className="card">
+              {[
+                { key: 'prayerIn', label: '✦ 큐티 전재 / 들어가는 기도', ph: '큐티를 시작하기 전, 마음을 여는 기도를 적어주세요...' },
+                { key: 'summary', label: '2. 본문 요약', ph: '본문을 간단히 두 세 줄로 요약해주세요...', short: true },
+                { key: 'verse', label: '3. 붙잡은 말씀', ph: '내가 은혜 받은 성경 구절을 적어주세요...' },
+                { key: 'meditation', label: '4. 느낌과 묵상', ph: '말씀을 통해 느끼고 묵상한 것을 자유롭게 적어주세요...', tall: true },
+              ].map(({ key, label, ph, tall, short }) => (
+                <div key={key} className="qt-block">
+                  <div className="qt-block-title">{label}</div>
+                  <textarea placeholder={ph} value={form[key]} onChange={set(key)} style={{ minHeight: tall ? 110 : short ? 70 : 90 }} />
+                </div>
+              ))}
+              <div className="qt-block">
+                <div className="qt-block-title">5. 적용과 결단</div>
+                <div style={{ marginBottom: 8 }}>
+                  <div className="field-label" style={{ marginBottom: 4 }}>성품)</div>
+                  <textarea placeholder="성품 면에서의 적용..." value={form.applyChar} onChange={set('applyChar')} style={{ minHeight: 70 }} />
+                </div>
+                <div>
+                  <div className="field-label" style={{ marginBottom: 4 }}>행동)</div>
+                  <textarea placeholder="행동 면에서의 결단..." value={form.applyAct} onChange={set('applyAct')} style={{ minHeight: 70 }} />
+                </div>
+              </div>
+              <div className="qt-block" style={{ marginBottom: 0 }}>
+                <div className="qt-block-title">6. 올려드리는 기도</div>
+                <textarea placeholder="마무리 기도를 적어주세요..." value={form.prayerOut} onChange={set('prayerOut')} />
+              </div>
+            </div>
+            <div className="btn-row">
+              <button className="btn" onClick={onClose}>취소</button>
+              <button className="btn btn-pastor" onClick={handleSave} disabled={saving}>{saving ? '저장 중...' : '올리기 ✝'}</button>
+            </div>
           </div>
-        </div>
-        <div className="btn-row">
-          <button className="btn" onClick={onClose}>취소</button>
-          <button className="btn btn-pastor" onClick={handleSave} disabled={saving}>{saving ? '저장 중...' : '올리기 ✝'}</button>
-        </div>
+        )}
       </div>
     </div>
   );
