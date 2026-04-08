@@ -63,6 +63,48 @@ function WordBox({ word, showFull }) {
   );
 }
 
+function AllWordsList() {
+  const [words, setWords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(null);
+
+  useEffect(() => {
+    getPastorWords().then(data => { setWords(data); setLoading(false); });
+  }, []);
+
+  if (loading) return <div className="empty">불러오는 중...</div>;
+  if (!words.length) return (
+    <div className="empty">
+      <div className="empty-icon">📖</div>
+      <div>아직 올라온 말씀이 없습니다.</div>
+    </div>
+  );
+
+  if (selected) {
+    return (
+      <div>
+        <button className="btn btn-sm" style={{ marginBottom: '1rem' }} onClick={() => setSelected(null)}>← 목록으로</button>
+        <WordBox word={selected} showFull={true} />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {words.map((w, i) => (
+        <div key={i} className="entry-card" onClick={() => setSelected(w)}>
+          <div className="entry-card-meta">
+            <span className="entry-date">{formatDate(w.date)}</span>
+            <span className="badge badge-pastor">목사님</span>
+          </div>
+          <div className="entry-book serif">{w.book}</div>
+          {w.verse && <div className="entry-preview">{w.verse.substring(0, 60)}{w.verse.length > 60 ? '...' : ''}</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function DetailModal({ entry, isPastor, onClose, onDelete, onEdit }) {
   if (!entry) return null;
   const sections = [
@@ -606,7 +648,7 @@ export default function Home() {
                 }}
               />
             )}
-            {activeTab === 'word' && <WordBox word={todayWord} showFull={true} />}
+            {activeTab === 'word' && <AllWordsList />}
           </div>
         )}
 
