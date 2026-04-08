@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import {
   getUser, createUser, getMyEntries, getAllEntries,
-  saveEntry, deleteEntry, getPastorWords, getTodayWord,
+  saveEntry, updateEntry, deleteEntry, getPastorWords, getTodayWord,
   savePastorWord, PASTOR_CODE, formatDate, today
 } from '../lib/storage';
 
@@ -32,7 +32,7 @@ function WordBox({ word }) {
   );
 }
 
-function DetailModal({ entry, isPastor, onClose, onDelete }) {
+function DetailModal({ entry, isPastor, onClose, onDelete, onEdit }) {
   if (!entry) return null;
   const sections = [
     { title: '✦ 들어가는 기도', content: entry.prayerIn },
@@ -65,6 +65,7 @@ function DetailModal({ entry, isPastor, onClose, onDelete }) {
         {!isPastor && (
           <div className="btn-row">
             <button className="btn btn-danger btn-sm" onClick={() => onDelete(entry.id)}>삭제</button>
+            <button className="btn btn-primary btn-sm" onClick={() => onEdit(entry)}>수정</button>
           </div>
         )}
       </div>
@@ -115,17 +116,26 @@ function PastorWordModal({ onClose, onSave, existing }) {
   );
 }
 
-function WriteForm({ currentUser, onSaved, todayWord }) {
+function WriteForm({ currentUser, onSaved, todayWord, editingEntry, onCancelEdit }) {
   const empty = { book: '', date: today(), prayerIn: '', summary: '', verse: '', meditation: '', applyChar: '', applyAct: '', prayerOut: '' };
-  const [form, setForm] = useState(empty);
+  const [form, setForm] = useState(editingEntry || empty);
   const [saving, setSaving] = useState(false);
+  const isEditing = !!editingEntry;
+
+  useEffect(() => {
+    setForm(editingEntry || empty);
+  }, [editingEntry]);
 
   function set(key) { return e => setForm(f => ({ ...f, [key]: e.target.value })); }
 
   async function handleSave() {
     if (!form.book.trim()) return;
     setSaving(true);
-    await saveEntry({ ...form, author: currentUser });
+    if (isEditing) {
+      await updateEntry(editingEntry.id, { ...form, author: currentUser });
+    } else {
+      await saveEntry({ ...form, author: currentUser });
+    }
     setForm(empty);
     setSaving(false);
     onSaved();
@@ -133,7 +143,13 @@ function WriteForm({ currentUser, onSaved, todayWord }) {
 
   return (
     <div>
-      {todayWord && <WordBox word={todayWord} />}
+      {!isEditing && todayWord && <WordBox word={todayWord} />}
+      {isEditing && (
+        <div style={{ background: 'var(--gold-light)', border: '1px solid var(--gold)', borderRadius: 8, padding: '10px 14px', marginBottom: '1rem', fontSize: 14, color: 'var(--brown-dark)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>✏️ 큐티 수정 중</span>
+          <button className="btn btn-sm" onClick={onCancelEdit}>취소</button>
+        </div>
+      )}
       <div className="card">
         <div className="field-group">
           <label className="field-label">📖 오늘 본문</label>
@@ -174,7 +190,9 @@ function WriteForm({ currentUser, onSaved, todayWord }) {
       </div>
       <div className="btn-row">
         <button className="btn" onClick={() => setForm(empty)}>초기화</button>
-        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? '저장 중...' : '저장하기 ✝'}</button>
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+          {saving ? '저장 중...' : isEditing ? '수정 완료 ✝' : '저장하기 ✝'}
+        </button>
       </div>
     </div>
   );
@@ -293,6 +311,7 @@ export default function Home() {
   const [todayWord, setTodayWord] = useState(null);
   const [toast, setToast] = useState({ message: '', type: '' });
   const [refreshKey, setRefreshKey] = useState(0);
+  const [editingEntry, setEditingEntry] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const [loginName, setLoginName] = useState('');
@@ -341,6 +360,12 @@ export default function Home() {
   function doLogout() {
     setCurrentUser(''); setIsPastor(false); setScreen('login');
     setLoginName(''); setLoginPw(''); setPastorPw('');
+  }
+
+  function handleEditEntry(entry) {
+    setSelectedEntry(null);
+    setEditingEntry(entry);
+    setActiveTab('write');
   }
 
   async function handleDeleteEntry(id) {
@@ -456,7 +481,18 @@ export default function Home() {
             </div>
             {activeTab === 'list' && <MyList currentUser={currentUser} onSelect={setSelectedEntry} refreshKey={refreshKey} />}
             {activeTab === 'write' && (
-              <WriteForm currentUser={currentUser} todayWord={todayWord} onSaved={() => { showToast('큐티가 저장되었습니다 ✝'); setActiveTab('list'); setRefreshKey(k => k + 1); }} />
+              <WriteForm
+                currentUser={currentUser}
+                todayWord={todayWord}
+                editingEntry={editingEntry}
+                onCancelEdit={() => { setEditingEntry(null); setActiveTab('list'); }}
+                onSaved={() => {
+                  showToast(editingEntry ? '수정되었습니다 ✝' : '큐티가 저장되었습니다 ✝');
+                  setEditingEntry(null);
+                  setActiveTab('list');
+                  setRefreshKey(k => k + 1);
+                }}
+              />
             )}
             {activeTab === 'word' && <WordBox word={todayWord} />}
           </div>
@@ -482,7 +518,7 @@ export default function Home() {
       </div>
 
       {selectedEntry && (
-        <DetailModal entry={selectedEntry} isPastor={isPastor} onClose={() => setSelectedEntry(null)} onDelete={handleDeleteEntry} />
+        <DetailModal entry={selectedEntry} isPastor={isPastor} onClose={() => setSelectedEntry(null)} onDelete={handleDeleteEntry} onEdit={handleEditEntry} />
       )}
       {showWordModal && (
         <PastorWordModal onClose={() => setShowWordModal(false)} onSave={handleSaveWord} existing={todayWord} />
