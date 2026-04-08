@@ -185,8 +185,7 @@ function WriteForm({ currentUser, onSaved, todayWord, editingEntry, onCancelEdit
   function set(key) { return e => setForm(f => ({ ...f, [key]: e.target.value })); }
 
   async function handleSave() {
-    const bookValue = (!isEditing && todayWord) ? todayWord.reference : form.book;
-    if (!bookValue.trim()) return;
+    const bookValue = isEditing ? form.book : (todayWord ? todayWord.book : '');
     setSaving(true);
     if (isEditing) {
       await updateEntry(editingEntry.id, { ...form, author: currentUser });
