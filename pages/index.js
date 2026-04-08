@@ -15,19 +15,50 @@ function Toast({ message, type }) {
   );
 }
 
-function WordBox({ word }) {
+function WordBox({ word, showFull }) {
   if (!word) return (
     <div className="word-box" style={{ background: 'var(--cream-dark)', color: 'var(--text-soft)' }}>
       <div className="word-box-label">오늘의 말씀</div>
       <div style={{ fontSize: 14, opacity: 0.7 }}>목사님이 아직 오늘의 말씀을 올리지 않으셨습니다.</div>
     </div>
   );
+
+  if (showFull) {
+    const sections = [
+      { title: '✦ 들어가는 기도', content: word.prayerIn },
+      { title: '2. 본문 요약', content: word.summary },
+      { title: '3. 붙잡은 말씀', content: word.verse, highlight: true },
+      { title: '4. 느낌과 묵상', content: word.meditation },
+      { title: '5. 적용과 결단 — 성품', content: word.applyChar },
+      { title: '5. 적용과 결단 — 행동', content: word.applyAct },
+      { title: '6. 올려드리는 기도', content: word.prayerOut },
+    ].filter(s => s.content);
+
+    return (
+      <div>
+        <div className="word-box" style={{ marginBottom: '1rem' }}>
+          <div className="word-box-label">✝ 오늘의 말씀 · {formatDate(word.date)}</div>
+          <div className="word-box-ref" style={{ fontSize: 16, fontWeight: 500 }}>{word.book}</div>
+        </div>
+        <div className="card">
+          {sections.map((s, i) => (
+            <div key={i} className="detail-section" style={{ paddingTop: i === 0 ? 0 : '1rem', borderTop: i === 0 ? 'none' : '1px solid var(--border)' }}>
+              <div className="detail-section-title">{s.title}</div>
+              {s.highlight
+                ? <div className="verse-highlight detail-content">{s.content}</div>
+                : <div className="detail-content">{s.content}</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="word-box">
       <div className="word-box-label">✝ 오늘의 말씀 · {formatDate(word.date)}</div>
-      <div className="word-box-verse serif">&ldquo;{word.verse}&rdquo;</div>
-      <div className="word-box-ref">{word.reference}</div>
-      {word.body && <div className="word-box-body">{word.body}</div>}
+      <div className="word-box-ref" style={{ fontSize: 15, fontWeight: 500 }}>{word.book}</div>
+      {word.verse && <div className="word-box-verse serif" style={{ marginTop: 8 }}>&ldquo;{word.verse}&rdquo;</div>}
     </div>
   );
 }
@@ -74,18 +105,14 @@ function DetailModal({ entry, isPastor, onClose, onDelete, onEdit }) {
 }
 
 function PastorWordModal({ onClose, onSave, existing }) {
-  const [form, setForm] = useState({
-    reference: existing?.reference || '',
-    verse: existing?.verse || '',
-    body: existing?.body || '',
-    date: existing?.date || today(),
-  });
+  const empty = { book: existing?.book || '', date: existing?.date || today(), prayerIn: existing?.prayerIn || '', summary: existing?.summary || '', verse: existing?.verse || '', meditation: existing?.meditation || '', applyChar: existing?.applyChar || '', applyAct: existing?.applyAct || '', prayerOut: existing?.prayerOut || '' };
+  const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
 
   function set(key) { return e => setForm(f => ({ ...f, [key]: e.target.value })); }
 
   async function handleSave() {
-    if (!form.reference.trim() || !form.verse.trim()) return;
+    if (!form.book.trim()) return;
     setSaving(true);
     await onSave({ ...form });
     setSaving(false);
@@ -98,10 +125,10 @@ function PastorWordModal({ onClose, onSave, existing }) {
           <div className="serif" style={{ fontSize: 18, fontWeight: 500, color: 'var(--brown-dark)' }}>오늘의 말씀 올리기</div>
           <button className="btn btn-sm" onClick={onClose}>닫기</button>
         </div>
-        <div className="card" style={{ marginBottom: '1rem' }}>
+        <div className="card">
           <div className="field-group">
-            <label className="field-label">📖 본문 구절 (예: 요한복음 3:16)</label>
-            <input type="text" placeholder="요한복음 3:16" value={form.reference} onChange={set('reference')} />
+            <label className="field-label">📖 오늘 본문</label>
+            <input type="text" placeholder="예) 요한복음 3:16-17" value={form.book} onChange={set('book')} />
           </div>
           <div className="field-group" style={{ marginBottom: 0 }}>
             <label className="field-label">날짜</label>
@@ -109,20 +136,35 @@ function PastorWordModal({ onClose, onSave, existing }) {
           </div>
         </div>
         <div className="card">
+          {[
+            { key: 'prayerIn', label: '✦ 큐티 전재 / 들어가는 기도', ph: '큐티를 시작하기 전, 마음을 여는 기도를 적어주세요...' },
+            { key: 'summary', label: '2. 본문 요약', ph: '본문을 간단히 두 세 줄로 요약해주세요...', short: true },
+            { key: 'verse', label: '3. 붙잡은 말씀', ph: '내가 은혜 받은 성경 구절을 적어주세요...' },
+            { key: 'meditation', label: '4. 느낌과 묵상', ph: '말씀을 통해 느끼고 묵상한 것을 자유롭게 적어주세요...', tall: true },
+          ].map(({ key, label, ph, tall, short }) => (
+            <div key={key} className="qt-block">
+              <div className="qt-block-title">{label}</div>
+              <textarea placeholder={ph} value={form[key]} onChange={set(key)} style={{ minHeight: tall ? 110 : short ? 70 : 90 }} />
+            </div>
+          ))}
           <div className="qt-block">
-            <div className="qt-block-title">✦ 오늘의 말씀 본문</div>
-            <textarea placeholder="성경 구절 내용을 입력하세요..." value={form.verse} onChange={set('verse')} style={{ minHeight: 100 }} />
-          </div>
-          <div className="qt-block">
-            <div className="qt-block-title">2. 본문 요약 / 묵상 포인트</div>
-            <textarea placeholder="말씀 요약이나 묵상 포인트를 적어주세요..." value={form.body} onChange={set('body')} style={{ minHeight: 90 }} />
+            <div className="qt-block-title">5. 적용과 결단</div>
+            <div style={{ marginBottom: 8 }}>
+              <div className="field-label" style={{ marginBottom: 4 }}>성품)</div>
+              <textarea placeholder="성품 면에서의 적용..." value={form.applyChar} onChange={set('applyChar')} style={{ minHeight: 70 }} />
+            </div>
+            <div>
+              <div className="field-label" style={{ marginBottom: 4 }}>행동)</div>
+              <textarea placeholder="행동 면에서의 결단..." value={form.applyAct} onChange={set('applyAct')} style={{ minHeight: 70 }} />
+            </div>
           </div>
           <div className="qt-block" style={{ marginBottom: 0 }}>
-            <div className="qt-block-title">3. 적용과 결단 가이드 (선택)</div>
-            <textarea placeholder="청년들이 적용할 수 있는 가이드를 적어주세요..." value={form.guide || ''} onChange={set('guide')} style={{ minHeight: 80 }} />
+            <div className="qt-block-title">6. 올려드리는 기도</div>
+            <textarea placeholder="마무리 기도를 적어주세요..." value={form.prayerOut} onChange={set('prayerOut')} />
           </div>
         </div>
         <div className="btn-row">
+          <button className="btn" onClick={onClose}>취소</button>
           <button className="btn btn-pastor" onClick={handleSave} disabled={saving}>{saving ? '저장 중...' : '올리기 ✝'}</button>
         </div>
       </div>
@@ -516,7 +558,7 @@ export default function Home() {
                 }}
               />
             )}
-            {activeTab === 'word' && <WordBox word={todayWord} />}
+            {activeTab === 'word' && <WordBox word={todayWord} showFull={true} />}
           </div>
         )}
 
