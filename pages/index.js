@@ -74,42 +74,56 @@ function DetailModal({ entry, isPastor, onClose, onDelete, onEdit }) {
 }
 
 function PastorWordModal({ onClose, onSave, existing }) {
-  const [verse, setVerse] = useState(existing?.verse || '');
-  const [reference, setReference] = useState(existing?.reference || '');
-  const [body, setBody] = useState(existing?.body || '');
-  const [date, setDate] = useState(existing?.date || today());
+  const [form, setForm] = useState({
+    reference: existing?.reference || '',
+    verse: existing?.verse || '',
+    body: existing?.body || '',
+    date: existing?.date || today(),
+  });
   const [saving, setSaving] = useState(false);
 
+  function set(key) { return e => setForm(f => ({ ...f, [key]: e.target.value })); }
+
   async function handleSave() {
-    if (!verse.trim() || !reference.trim()) return;
+    if (!form.reference.trim() || !form.verse.trim()) return;
     setSaving(true);
-    await onSave({ verse: verse.trim(), reference: reference.trim(), body: body.trim(), date });
+    await onSave({ ...form });
     setSaving(false);
   }
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal">
-        <h2 style={{ marginBottom: '1.25rem', fontSize: 18 }}>오늘의 말씀 올리기</h2>
-        <div className="field-group">
-          <label className="field-label">날짜</label>
-          <input type="date" value={date} onChange={e => setDate(e.target.value)} />
+      <div className="modal" style={{ maxWidth: 640 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+          <div className="serif" style={{ fontSize: 18, fontWeight: 500, color: 'var(--brown-dark)' }}>오늘의 말씀 올리기</div>
+          <button className="btn btn-sm" onClick={onClose}>닫기</button>
         </div>
-        <div className="field-group">
-          <label className="field-label">성경 구절 본문</label>
-          <textarea rows={4} placeholder="예) 하나님이 세상을 이처럼 사랑하사..." value={verse} onChange={e => setVerse(e.target.value)} />
+        <div className="card" style={{ marginBottom: '1rem' }}>
+          <div className="field-group">
+            <label className="field-label">📖 본문 구절 (예: 요한복음 3:16)</label>
+            <input type="text" placeholder="요한복음 3:16" value={form.reference} onChange={set('reference')} />
+          </div>
+          <div className="field-group" style={{ marginBottom: 0 }}>
+            <label className="field-label">날짜</label>
+            <input type="date" value={form.date} onChange={set('date')} />
+          </div>
         </div>
-        <div className="field-group">
-          <label className="field-label">출처 (예: 요한복음 3:16)</label>
-          <input type="text" placeholder="요한복음 3:16" value={reference} onChange={e => setReference(e.target.value)} />
-        </div>
-        <div className="field-group">
-          <label className="field-label">말씀 나눔 / 설명 (선택)</label>
-          <textarea rows={4} placeholder="해당 말씀에 대한 목사님의 나눔..." value={body} onChange={e => setBody(e.target.value)} />
+        <div className="card">
+          <div className="qt-block">
+            <div className="qt-block-title">✦ 오늘의 말씀 본문</div>
+            <textarea placeholder="성경 구절 내용을 입력하세요..." value={form.verse} onChange={set('verse')} style={{ minHeight: 100 }} />
+          </div>
+          <div className="qt-block">
+            <div className="qt-block-title">2. 본문 요약 / 묵상 포인트</div>
+            <textarea placeholder="말씀 요약이나 묵상 포인트를 적어주세요..." value={form.body} onChange={set('body')} style={{ minHeight: 90 }} />
+          </div>
+          <div className="qt-block" style={{ marginBottom: 0 }}>
+            <div className="qt-block-title">3. 적용과 결단 가이드 (선택)</div>
+            <textarea placeholder="청년들이 적용할 수 있는 가이드를 적어주세요..." value={form.guide || ''} onChange={set('guide')} style={{ minHeight: 80 }} />
+          </div>
         </div>
         <div className="btn-row">
-          <button className="btn" onClick={onClose}>취소</button>
-          <button className="btn btn-pastor" onClick={handleSave} disabled={saving}>{saving ? '저장 중...' : '올리기'}</button>
+          <button className="btn btn-pastor" onClick={handleSave} disabled={saving}>{saving ? '저장 중...' : '올리기 ✝'}</button>
         </div>
       </div>
     </div>
@@ -129,12 +143,13 @@ function WriteForm({ currentUser, onSaved, todayWord, editingEntry, onCancelEdit
   function set(key) { return e => setForm(f => ({ ...f, [key]: e.target.value })); }
 
   async function handleSave() {
-    if (!form.book.trim()) return;
+    const bookValue = (!isEditing && todayWord) ? todayWord.reference : form.book;
+    if (!bookValue.trim()) return;
     setSaving(true);
     if (isEditing) {
       await updateEntry(editingEntry.id, { ...form, author: currentUser });
     } else {
-      await saveEntry({ ...form, author: currentUser });
+      await saveEntry({ ...form, book: bookValue, author: currentUser });
     }
     setForm(empty);
     setSaving(false);
@@ -153,7 +168,14 @@ function WriteForm({ currentUser, onSaved, todayWord, editingEntry, onCancelEdit
       <div className="card">
         <div className="field-group">
           <label className="field-label">📖 오늘 본문</label>
-          <input type="text" placeholder="예) 요한복음 3:16-17" value={form.book} onChange={set('book')} />
+          <input
+            type="text"
+            placeholder="예) 요한복음 3:16-17"
+            value={!isEditing && todayWord ? todayWord.reference : form.book}
+            onChange={!isEditing && todayWord ? undefined : set('book')}
+            readOnly={!isEditing && !!todayWord}
+            style={!isEditing && todayWord ? { background: 'var(--cream-dark)', color: 'var(--brown)', fontWeight: 500, cursor: 'default' } : {}}
+          />
         </div>
         <div className="field-group">
           <label className="field-label">날짜</label>
