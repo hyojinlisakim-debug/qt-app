@@ -207,18 +207,7 @@ function WriteForm({ currentUser, onSaved, todayWord, editingEntry, onCancelEdit
         </div>
       )}
       <div className="card">
-        <div className="field-group">
-          <label className="field-label">📖 오늘 본문</label>
-          <input
-            type="text"
-            placeholder="예) 요한복음 3:16-17"
-            value={!isEditing && todayWord ? todayWord.reference : form.book}
-            onChange={!isEditing && todayWord ? undefined : set('book')}
-            readOnly={!isEditing && !!todayWord}
-            style={!isEditing && todayWord ? { background: 'var(--cream-dark)', color: 'var(--brown)', fontWeight: 500, cursor: 'default' } : {}}
-          />
-        </div>
-        <div className="field-group">
+        <div className="field-group" style={{ marginBottom: 0 }}>
           <label className="field-label">날짜</label>
           <input type="date" value={form.date} onChange={set('date')} />
         </div>
