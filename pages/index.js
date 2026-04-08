@@ -425,7 +425,7 @@ function PastorList({ onSelect }) {
   );
 }
 
-function PastorWords({ onPost }) {
+function PastorWords({ onPost, onEdit }) {
   const [words, setWords] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -441,13 +441,14 @@ function PastorWords({ onPost }) {
       </div>
       {!words.length && <div className="empty"><div className="empty-icon">📖</div><div>아직 올린 말씀이 없습니다.</div></div>}
       {words.map((w, i) => (
-        <div key={i} className="entry-card" style={{ cursor: 'default' }}>
+        <div key={i} className="entry-card" onClick={() => onEdit(w)}>
           <div className="entry-card-meta">
             <span className="entry-date">{formatDate(w.date)}</span>
             <span className="badge badge-pastor">목사님</span>
           </div>
-          <div className="entry-book serif">&ldquo;{w.verse?.substring(0, 60)}{w.verse?.length > 60 ? '...' : ''}&rdquo;</div>
-          <div className="entry-preview">{w.reference}</div>
+          <div className="entry-book serif">{w.book}</div>
+          {w.verse && <div className="entry-preview">{w.verse.substring(0, 60)}{w.verse.length > 60 ? '...' : ''}</div>}
+          <div style={{ marginTop: 6, fontSize: 12, color: 'var(--brown)' }}>✏️ 클릭해서 수정</div>
         </div>
       ))}
     </div>
@@ -462,6 +463,7 @@ export default function Home() {
   const [pastorTab, setPastorTab] = useState('entries');
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [showWordModal, setShowWordModal] = useState(false);
+  const [editingWord, setEditingWord] = useState(null);
   const [todayWord, setTodayWord] = useState(null);
   const [toast, setToast] = useState({ message: '', type: '' });
   const [refreshKey, setRefreshKey] = useState(0);
@@ -532,8 +534,9 @@ export default function Home() {
   async function handleSaveWord(word) {
     await savePastorWord(word);
     setShowWordModal(false);
+    setEditingWord(null);
     getTodayWord().then(setTodayWord);
-    showToast('오늘의 말씀이 올라갔습니다 ✝');
+    showToast('말씀이 저장되었습니다 ✝');
   }
 
   return (
@@ -666,7 +669,7 @@ export default function Home() {
               <div className={`tab-item${pastorTab === 'words' ? ' active' : ''}`} onClick={() => setPastorTab('words')}>말씀 관리</div>
             </div>
             {pastorTab === 'entries' && <PastorList onSelect={setSelectedEntry} />}
-            {pastorTab === 'words' && <PastorWords onPost={() => setShowWordModal(true)} />}
+            {pastorTab === 'words' && <PastorWords onPost={() => { setEditingWord(null); setShowWordModal(true); }} onEdit={w => { setEditingWord(w); setShowWordModal(true); }} />}
           </div>
         )}
       </div>
@@ -675,7 +678,7 @@ export default function Home() {
         <DetailModal entry={selectedEntry} isPastor={isPastor} onClose={() => setSelectedEntry(null)} onDelete={handleDeleteEntry} onEdit={handleEditEntry} />
       )}
       {showWordModal && (
-        <PastorWordModal onClose={() => setShowWordModal(false)} onSave={handleSaveWord} existing={todayWord} />
+        <PastorWordModal onClose={() => { setShowWordModal(false); setEditingWord(null); }} onSave={handleSaveWord} existing={editingWord} />
       )}
       <Toast message={toast.message} type={toast.type} />
     </>
