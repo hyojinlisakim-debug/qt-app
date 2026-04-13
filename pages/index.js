@@ -3,7 +3,8 @@ import Head from 'next/head';
 import {
   getUser, createUser, getMyEntries, getAllEntries,
   saveEntry, updateEntry, deleteEntry, getPastorWords, getTodayWord,
-  savePastorWord, PASTOR_CODE, formatDate, today
+  savePastorWord, addComment, getCommentsByEntry, getUnreadComments,
+  markCommentsRead, PASTOR_CODE, formatDate, today
 } from '../lib/storage';
 
 function Toast({ message, type }) {
@@ -101,6 +102,122 @@ function AllWordsList() {
           {w.verse && <div className="entry-preview">{w.verse.substring(0, 60)}{w.verse.length > 60 ? '...' : ''}</div>}
         </div>
       ))}
+    </div>
+  );
+}
+
+function CommentModal({ entry, onClose }) {
+  const [comments, setComments] = useState([]);
+  const [text, setText] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getCommentsByEntry(entry.id).then(data => { setComments(data); setLoading(false); });
+  }, [entry.id]);
+
+  async function handleSubmit() {
+    if (!text.trim()) return;
+    setSaving(true);
+    await addComment(entry.id, {
+      text: text.trim(),
+      entryAuthor: entry.author,
+      entryBook: entry.book,
+    });
+    const updated = await getCommentsByEntry(entry.id);
+    setComments(updated);
+    setText('');
+    setSaving(false);
+  }
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <div>
+            <div className="serif" style={{ fontSize: 16, fontWeight: 500, color: 'var(--brown-dark)' }}>{entry.book}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-soft)' }}>{entry.author} · {formatDate(entry.date)}</div>
+          </div>
+          <button className="btn btn-sm" onClick={onClose}>닫기</button>
+        </div>
+
+        <div style={{ marginBottom: '1rem' }}>
+          <div className="section-label" style={{ marginBottom: 8 }}>목사님 코멘트</div>
+          {loading && <div style={{ fontSize: 13, color: 'var(--text-soft)' }}>불러오는 중...</div>}
+          {!loading && !comments.length && (
+            <div style={{ fontSize: 13, color: 'var(--text-soft)', padding: '12px 0' }}>아직 코멘트가 없습니다.</div>
+          )}
+          {comments.map((c, i) => (
+            <div key={i} style={{ background: 'var(--forest-light)', borderLeft: '3px solid var(--forest)', borderRadius: '0 8px 8px 0', padding: '10px 14px', marginBottom: 8 }}>
+              <div style={{ fontSize: 13, color: 'var(--forest)', fontWeight: 500, marginBottom: 4 }}>목사님</div>
+              <div style={{ fontSize: 14, lineHeight: 1.7, color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{c.text}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-soft)', marginTop: 6 }}>
+                {new Date(c.createdAt).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div>
+          <div className="section-label" style={{ marginBottom: 8 }}>코멘트 작성</div>
+          <textarea
+            placeholder="이 큐티에 대한 코멘트를 남겨주세요..."
+            value={text}
+            onChange={e => setText(e.target.value)}
+            style={{ minHeight: 90, marginBottom: 8 }}
+          />
+          <div className="btn-row">
+            <button className="btn btn-pastor" onClick={handleSubmit} disabled={saving || !text.trim()}>
+              {saving ? '저장 중...' : '코멘트 달기 ✝'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NotificationPanel({ currentUser, onClose }) {
+  const [comments, setComments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(null);
+
+  useEffect(() => {
+    getUnreadComments(currentUser).then(async data => {
+      setComments(data);
+      setLoading(false);
+      if (data.length > 0) {
+        await markCommentsRead(data.map(c => c.id));
+      }
+    });
+  }, [currentUser]);
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <div className="serif" style={{ fontSize: 18, fontWeight: 500, color: 'var(--brown-dark)' }}>새 코멘트</div>
+          <button className="btn btn-sm" onClick={onClose}>닫기</button>
+        </div>
+        {loading && <div className="empty">불러오는 중...</div>}
+        {!loading && !comments.length && (
+          <div className="empty">
+            <div className="empty-icon" style={{ fontSize: 24 }}>💬</div>
+            <div>새 코멘트가 없습니다.</div>
+          </div>
+        )}
+        {comments.map((c, i) => (
+          <div key={i} style={{ background: 'var(--forest-light)', border: '1px solid rgba(61,107,79,0.2)', borderRadius: 10, padding: '12px 14px', marginBottom: 8 }}>
+            <div style={{ fontSize: 12, color: 'var(--forest)', fontWeight: 500, marginBottom: 4 }}>
+              목사님 코멘트 · {c.entryBook}
+            </div>
+            <div style={{ fontSize: 14, lineHeight: 1.7, color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{c.text}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-soft)', marginTop: 6 }}>
+              {new Date(c.createdAt).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -385,7 +502,7 @@ function MyList({ currentUser, onSelect, refreshKey }) {
   );
 }
 
-function PastorList({ onSelect }) {
+function PastorList({ onSelect, onComment }) {
   const [entries, setEntries] = useState([]);
   const [filter, setFilter] = useState('all');
   const [authors, setAuthors] = useState([]);
@@ -412,13 +529,17 @@ function PastorList({ onSelect }) {
       </div>
       {!filtered.length && <div className="empty"><div className="empty-icon">✝</div><div>아직 작성된 큐티가 없습니다.</div></div>}
       {filtered.map(e => (
-        <div key={e.id} className="entry-card" onClick={() => onSelect(e)}>
+        <div key={e.id} className="entry-card">
           <div className="entry-card-meta">
             <span className="entry-date">{formatDate(e.date)}</span>
             <span className="badge badge-user">{e.author}</span>
           </div>
           <div className="entry-book">{e.book}</div>
           {e.verse && <div className="entry-preview">{e.verse}</div>}
+          <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+            <button className="btn btn-sm" style={{ flex: 1 }} onClick={() => onSelect(e)}>상세 보기</button>
+            <button className="btn btn-sm btn-pastor" style={{ flex: 1 }} onClick={() => onComment(e)}>💬 코멘트 달기</button>
+          </div>
         </div>
       ))}
     </div>
@@ -469,6 +590,9 @@ export default function Home() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [editingEntry, setEditingEntry] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotif, setShowNotif] = useState(false);
+  const [commentEntry, setCommentEntry] = useState(null);
 
   const [loginName, setLoginName] = useState('');
   const [loginPw, setLoginPw] = useState('');
@@ -489,10 +613,12 @@ export default function Home() {
     setLoading(false);
     if (!user) { showToast('등록된 사용자가 없습니다', 'error'); return; }
     if (user.password !== loginPw) { showToast('비밀번호가 틀렸습니다', 'error'); return; }
-    setCurrentUser(loginName.trim());
+    const uname = loginName.trim();
+    setCurrentUser(uname);
     setScreen('main');
     setActiveTab('list');
     getTodayWord().then(setTodayWord);
+    getUnreadComments(uname).then(data => setUnreadCount(data.length));
   }
 
   function doPastorLogin() {
@@ -516,6 +642,7 @@ export default function Home() {
   function doLogout() {
     setCurrentUser(''); setIsPastor(false); setScreen('login');
     setLoginName(''); setLoginPw(''); setPastorPw('');
+    setUnreadCount(0); setShowNotif(false); setCommentEntry(null);
   }
 
   function handleEditEntry(entry) {
@@ -550,9 +677,24 @@ export default function Home() {
         <div className="container">
           <div className="site-header-inner">
             <div className="site-logo serif">✝ 큐티 나눔</div>
-            {(screen === 'main' || screen === 'pastor') && (
-              <button className="btn btn-sm" onClick={doLogout}>로그아웃</button>
-            )}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {screen === 'main' && (
+                <button
+                  onClick={() => setShowNotif(true)}
+                  style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', fontSize: 20 }}
+                >
+                  💬
+                  {unreadCount > 0 && (
+                    <span style={{ position: 'absolute', top: 0, right: 0, background: '#A32D2D', color: 'white', borderRadius: '50%', width: 18, height: 18, fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {unreadCount}
+                    </span>
+                  )}
+                </button>
+              )}
+              {(screen === 'main' || screen === 'pastor') && (
+                <button className="btn btn-sm" onClick={doLogout}>로그아웃</button>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -668,7 +810,7 @@ export default function Home() {
               <div className={`tab-item${pastorTab === 'entries' ? ' active' : ''}`} onClick={() => setPastorTab('entries')}>청년 큐티 전체</div>
               <div className={`tab-item${pastorTab === 'words' ? ' active' : ''}`} onClick={() => setPastorTab('words')}>말씀 관리</div>
             </div>
-            {pastorTab === 'entries' && <PastorList onSelect={setSelectedEntry} />}
+            {pastorTab === 'entries' && <PastorList onSelect={setSelectedEntry} onComment={setCommentEntry} />}
             {pastorTab === 'words' && <PastorWords onPost={() => { setEditingWord(null); setShowWordModal(true); }} onEdit={w => { setEditingWord(w); setShowWordModal(true); }} />}
           </div>
         )}
@@ -676,6 +818,12 @@ export default function Home() {
 
       {selectedEntry && (
         <DetailModal entry={selectedEntry} isPastor={isPastor} onClose={() => setSelectedEntry(null)} onDelete={handleDeleteEntry} onEdit={handleEditEntry} />
+      )}
+      {commentEntry && (
+        <CommentModal entry={commentEntry} onClose={() => setCommentEntry(null)} />
+      )}
+      {showNotif && (
+        <NotificationPanel currentUser={currentUser} onClose={() => { setShowNotif(false); setUnreadCount(0); }} />
       )}
       {showWordModal && (
         <PastorWordModal onClose={() => { setShowWordModal(false); setEditingWord(null); }} onSave={handleSaveWord} existing={editingWord} />
