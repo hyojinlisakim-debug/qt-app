@@ -192,6 +192,8 @@ function NotificationPanel({ currentUser, onClose }) {
     });
   }, [currentUser]);
 
+  // Note: after viewing, badge clears but comments stay visible in each entry
+
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal">
@@ -252,6 +254,20 @@ function DetailModal({ entry, isPastor, onClose, onDelete, onEdit }) {
               : <div className="detail-content">{s.content}</div>}
           </div>
         ))}
+        {!isPastor && entry.commentCount > 0 && (
+          <div className="detail-section">
+            <div className="detail-section-title">💬 목사님 코멘트</div>
+            {(entry.comments || []).map((c, i) => (
+              <div key={i} style={{ background: 'var(--forest-light)', borderLeft: '3px solid var(--forest)', borderRadius: '0 8px 8px 0', padding: '10px 14px', marginBottom: 8 }}>
+                <div style={{ fontSize: 13, color: 'var(--forest)', fontWeight: 500, marginBottom: 4 }}>목사님</div>
+                <div style={{ fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{c.text}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-soft)', marginTop: 4 }}>
+                  {new Date(c.createdAt).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         {!isPastor && (
           <div className="btn-row">
             <button className="btn btn-danger btn-sm" onClick={() => onDelete(entry.id)}>삭제</button>
@@ -486,13 +502,30 @@ function MyList({ currentUser, onSelect, refreshKey }) {
       <div style={{ marginTop: 4, fontSize: 12 }}>새로 작성 탭에서 시작해보세요</div>
     </div>
   );
+  const [commentCounts, setCommentCounts] = useState({});
+
+  useEffect(() => {
+    entries.forEach(e => {
+      getCommentsByEntry(e.id).then(comments => {
+        setCommentCounts(prev => ({ ...prev, [e.id]: comments.length }));
+      });
+    });
+  }, [entries]);
+
   return (
     <div>
       {entries.map(e => (
         <div key={e.id} className="entry-card" onClick={() => onSelect(e)}>
           <div className="entry-card-meta">
             <span className="entry-date">{formatDate(e.date)}</span>
-            <span className="badge badge-user">{e.author}</span>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              {commentCounts[e.id] > 0 && (
+                <span style={{ background: 'var(--forest-light)', color: 'var(--forest)', fontSize: 12, padding: '2px 8px', borderRadius: 100, fontWeight: 500 }}>
+                  💬 {commentCounts[e.id]}
+                </span>
+              )}
+              <span className="badge badge-user">{e.author}</span>
+            </div>
           </div>
           <div className="entry-book">{e.book}</div>
           {e.verse && <div className="entry-preview">{e.verse}</div>}
@@ -676,7 +709,7 @@ export default function Home() {
       <header className="site-header">
         <div className="container">
           <div className="site-header-inner">
-            <div className="site-logo serif">✝ 큐티 나눔</div>
+            <div className="site-logo serif">✝ 캘거리 순복음중앙교회 청년부 큐티 나눔</div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               {screen === 'main' && (
                 <button
@@ -778,7 +811,10 @@ export default function Home() {
               <div className={`tab-item${activeTab === 'write' ? ' active' : ''}`} onClick={() => setActiveTab('write')}>새로 작성</div>
               <div className={`tab-item${activeTab === 'word' ? ' active' : ''}`} onClick={() => setActiveTab('word')}>오늘의 말씀</div>
             </div>
-            {activeTab === 'list' && <MyList currentUser={currentUser} onSelect={setSelectedEntry} refreshKey={refreshKey} />}
+            {activeTab === 'list' && <MyList currentUser={currentUser} onSelect={async (e) => {
+                const comments = await getCommentsByEntry(e.id);
+                setSelectedEntry({ ...e, comments, commentCount: comments.length });
+              }} refreshKey={refreshKey} />}
             {activeTab === 'write' && (
               <WriteForm
                 currentUser={currentUser}
