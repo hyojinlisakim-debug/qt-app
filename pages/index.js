@@ -494,14 +494,6 @@ function MyList({ currentUser, onSelect, refreshKey }) {
     getMyEntries(currentUser).then(data => { setEntries(data); setLoading(false); });
   }, [currentUser, refreshKey]);
 
-  if (loading) return <div className="empty">불러오는 중...</div>;
-  if (!entries.length) return (
-    <div className="empty">
-      <div className="empty-icon">✝</div>
-      <div>아직 작성한 큐티가 없습니다.</div>
-      <div style={{ marginTop: 4, fontSize: 12 }}>새로 작성 탭에서 시작해보세요</div>
-    </div>
-  );
   const [commentCounts, setCommentCounts] = useState({});
 
   useEffect(() => {
@@ -511,6 +503,15 @@ function MyList({ currentUser, onSelect, refreshKey }) {
       });
     });
   }, [entries]);
+
+  if (loading) return <div className="empty">불러오는 중...</div>;
+  if (!entries.length) return (
+    <div className="empty">
+      <div className="empty-icon">✝</div>
+      <div>아직 작성한 큐티가 없습니다.</div>
+      <div style={{ marginTop: 4, fontSize: 12 }}>새로 작성 탭에서 시작해보세요</div>
+    </div>
+  );
 
   return (
     <div>
@@ -709,7 +710,7 @@ export default function Home() {
       <header className="site-header">
         <div className="container">
           <div className="site-header-inner">
-            <div className="site-logo serif">✝ 캘거리 순복음중앙교회 청년부 큐티 나눔</div>
+            <div className="site-logo serif">✝ 큐티 나눔</div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               {screen === 'main' && (
                 <button
