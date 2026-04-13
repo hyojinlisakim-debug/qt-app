@@ -3,7 +3,7 @@ import Head from 'next/head';
 import {
   getUser, createUser, getMyEntries, getAllEntries,
   saveEntry, updateEntry, deleteEntry, getPastorWords, getTodayWord,
-  savePastorWord, addComment, getCommentsByEntry, getUnreadComments,
+  savePastorWord, addComment, updateComment, deleteComment, getCommentsByEntry, getUnreadComments,
   markCommentsRead, PASTOR_CODE, formatDate, today
 } from '../lib/storage';
 
@@ -111,6 +111,8 @@ function CommentModal({ entry, onClose }) {
   const [text, setText] = useState('');
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState(null);
+  const [editText, setEditText] = useState('');
 
   useEffect(() => {
     getCommentsByEntry(entry.id).then(data => { setComments(data); setLoading(false); });
@@ -119,15 +121,34 @@ function CommentModal({ entry, onClose }) {
   async function handleSubmit() {
     if (!text.trim()) return;
     setSaving(true);
-    await addComment(entry.id, {
-      text: text.trim(),
-      entryAuthor: entry.author,
-      entryBook: entry.book,
-    });
+    await addComment(entry.id, { text: text.trim(), entryAuthor: entry.author, entryBook: entry.book });
     const updated = await getCommentsByEntry(entry.id);
     setComments(updated);
     setText('');
     setSaving(false);
+  }
+
+  async function handleUpdate(id) {
+    if (!editText.trim()) return;
+    setSaving(true);
+    await updateComment(id, editText.trim());
+    const updated = await getCommentsByEntry(entry.id);
+    setComments(updated);
+    setEditingId(null);
+    setEditText('');
+    setSaving(false);
+  }
+
+  async function handleDelete(id) {
+    if (!confirm('코멘트를 삭제하시겠습니까?')) return;
+    await deleteComment(id);
+    const updated = await getCommentsByEntry(entry.id);
+    setComments(updated);
+  }
+
+  function startEdit(c) {
+    setEditingId(c.id);
+    setEditText(c.text);
   }
 
   return (
@@ -149,17 +170,34 @@ function CommentModal({ entry, onClose }) {
           )}
           {comments.map((c, i) => (
             <div key={i} style={{ background: 'var(--forest-light)', borderLeft: '3px solid var(--forest)', borderRadius: '0 8px 8px 0', padding: '10px 14px', marginBottom: 8 }}>
-              <div style={{ fontSize: 13, color: 'var(--forest)', fontWeight: 500, marginBottom: 4 }}>목사님</div>
-              <div style={{ fontSize: 14, lineHeight: 1.7, color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{c.text}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <div style={{ fontSize: 13, color: 'var(--forest)', fontWeight: 500 }}>목사님</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="btn btn-sm" style={{ padding: '2px 10px', fontSize: 12 }} onClick={() => startEdit(c)}>수정</button>
+                  <button className="btn btn-sm btn-danger" style={{ padding: '2px 10px', fontSize: 12 }} onClick={() => handleDelete(c.id)}>삭제</button>
+                </div>
+              </div>
+              {editingId === c.id ? (
+                <div>
+                  <textarea value={editText} onChange={e => setEditText(e.target.value)} style={{ minHeight: 80, marginBottom: 6 }} />
+                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                    <button className="btn btn-sm" onClick={() => setEditingId(null)}>취소</button>
+                    <button className="btn btn-sm btn-pastor" onClick={() => handleUpdate(c.id)} disabled={saving}>{saving ? '저장 중...' : '수정 완료'}</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: 14, lineHeight: 1.7, color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{c.text}</div>
+              )}
               <div style={{ fontSize: 11, color: 'var(--text-soft)', marginTop: 6 }}>
                 {new Date(c.createdAt).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                {c.updatedAt && ' (수정됨)'}
               </div>
             </div>
           ))}
         </div>
 
         <div>
-          <div className="section-label" style={{ marginBottom: 8 }}>코멘트 작성</div>
+          <div className="section-label" style={{ marginBottom: 8 }}>새 코멘트 작성</div>
           <textarea
             placeholder="이 큐티에 대한 코멘트를 남겨주세요..."
             value={text}
